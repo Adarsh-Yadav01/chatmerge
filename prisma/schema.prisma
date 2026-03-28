@@ -1,0 +1,209 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String          @id @default(uuid())
+  name            String?
+  email           String?         @unique
+  emailVerified   DateTime?
+  image           String?
+  password        String?
+  role            Role            @default(USER)
+  provider        String?
+  instagramToken  String?
+  instagramUserId BigInt?         @unique
+  whatsappToken   String?
+  whatsappWabaId  String?
+  whatsappPhoneId String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  accounts        Account[]
+  comments        Comment[]       @relation("UserToComments")
+  directMessages  DirectMessage[] @relation("UserToDirectMessages")
+  dmSettings      DmSetting[]     @relation("UserToDmSettings")
+  media           Media[]         @relation("UserToMedia")
+  notifications   Notification[]  @relation("UserToNotifications")
+  sessions        Session[]
+  keywordAutomations KeywordAutomation[] @relation // Add this relation
+  @@index([whatsappWabaId])
+  @@index([whatsappPhoneId])
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+}
+
+model Media {
+  id                  String    @id @default(uuid())
+  mediaId             String    @unique
+  igId                BigInt
+  dmMessage           String?
+  dmLink              String?
+  openingDmMessage    String?   @default("Hi @${username}, click 'Send Link' to get the collection link!")
+  dmLinkButtonLabel   String?   @default("Link")
+  keywords            String[]  @default(["link"])
+  commentReplies      String[]  @default(["Hey! Check your DM"])
+  userId              String
+  caption             String?
+  mediaType           String?
+  mediaUrl            String?
+  permalink           String?
+  timestamp           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  postbackButtonLabel String?   @default("Send Link")
+  comments            Comment[] @relation("MediaToComments")
+  user                User      @relation("UserToMedia", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  @@index([mediaId])
+}
+
+model Comment {
+  id            String   @id @default(uuid())
+  mediaId       String
+  commentId     String   @unique
+  username      String
+  text          String
+  sentDM        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  commentUserId String?
+  dmClicked     Boolean  @default(false)
+  dmRead        Boolean  @default(false)
+  tags          String[] @default([])
+  updatedAt     DateTime @updatedAt
+  userId        String
+  messageId     String?
+  media         Media    @relation("MediaToComments", fields: [mediaId], references: [id], onUpdate: Cascade)
+  user          User     @relation("UserToComments", fields: [userId], references: [id], onUpdate: Cascade)
+  @@index([commentId])
+}
+
+model DmSetting {
+  id                String   @id @default(uuid())
+  userId            String
+  keywords          String[] @default([])
+  dmMessage         String
+  dmLink            String
+  dmLinkButtonLabel String?  @default("Link")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation("UserToDmSettings", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+}
+
+model DirectMessage {
+  id            String   @id @default(uuid())
+  userId        String
+  messageUserId String
+  messageText   String
+  sentDM        Boolean  @default(false)
+  dmRead        Boolean  @default(false)
+  tags          String[] @default([])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation("UserToDirectMessages", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+}
+
+model Notification {
+  id                  String    @id @default(uuid())
+  userId              String
+  actionType          String    @default("unknown")
+  message             String
+  actorUserId         String?
+  actorUsername       String?
+  actorProfilePicture String?
+  contentId           String?
+  contentType         String?
+  contentUrl          String?
+  thumbnailUrl        String?
+  contextText         String?
+  contextSnippet      String?
+  isRead              Boolean   @default(false)
+  isClicked           Boolean   @default(false)
+  clickedAt           DateTime?
+  priority            String?
+  mediaType           String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  user                User      @relation("UserToNotifications", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+}
+
+model MessageStatus {
+  id             String   @id @default(cuid())
+  messageId      String   @unique
+  recipientPhone String
+  status         String
+  timestamp      DateTime
+  error          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  @@index([messageId])
+  @@index([status])
+  @@map("message_statuses")
+}
+
+model IncomingMessage {
+  id            String   @id @default(cuid())
+  messageId     String   @unique
+  fromPhone     String
+  messageType   String
+  textBody      String?
+  phoneNumberId String
+  timestamp     DateTime
+  createdAt     DateTime @default(now())
+  @@index([messageId])
+  @@index([fromPhone])
+  @@map("incoming_messages")
+}
+
+model KeywordAutomation {
+  id           String   @id @default(cuid())
+  keyword      String
+  matchType    String   @default("exact")
+  templateId   String
+  templateName String
+  language     String
+  parameters   String?
+  isActive     Boolean  @default(true)
+  priority     Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  userId       String?  // Make userId nullable temporarily
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  @@index([keyword])
+  @@index([isActive])
+  @@index([priority])
+  @@index([userId])
+  @@map("keyword_automations")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
